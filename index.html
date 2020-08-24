@@ -1,0 +1,808 @@
+<html lang="en" manifest="manifest.appcache">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Document</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="../Bootstrap/bootstrap-4.5.2-dist/css/bootstrap.min.css"
+    />
+    <script src="../Bootstrap/bootstrap-4.5.2-dist/js/bootstrap.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+      integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+      integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+      crossorigin=""
+    ></script>
+
+    <link rel="stylesheet" href="geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"
+    />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <script src="lrm-openrouteservice-master/lrm-openrouteservice/L.Routing.OpenRouteService.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mapbox/corslite@0.0.7/corslite.min.js"></script>
+    <script src="node_modules/@mapbox/polyline/src/polyline.js"></script>
+    <link
+      rel="stylesheet"
+      href="../Bootstrap/bootstrap-4.5.2-dist/css/stylesheet.css"
+    />
+
+    <style>
+      #mapid {
+        height: 180px;
+      }
+      body {
+        padding: 0;
+        margin: 0;
+      }
+      html,
+      body,
+      #mapid {
+        height: 100%;
+        width: 100vw;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a class="navbar-brand" href="#">GAZETTEER</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <form class="form-inline my-2 my-lg-0">
+          <div id="searchbar"></div>
+        </form>
+      </div>
+    </nav>
+    <div id="mapid"></div>
+    <br />
+    <div class="table-responsive">
+      <table class="table table-sm table-hover table-striped" id="table">
+        <thead>
+          <tr class="table bg-light">
+            <th scope="col">City</th>
+            <th scope="col">Address</th>
+            <th scope="col">Timezone</th>
+            <th scope="col">Weather forecast</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td id="city"></td>
+            <td id="address"></td>
+            <td id="timezone"></td>
+            <td id="weather"></td>
+          </tr>
+          <tr class="bg-light">
+            <th scope="col">Lat/Lng</th>
+            <th scope="col">Currency/current exchange rate</th>
+            <th scope="col">Borders</th>
+            <th scope="col">Calling Codes</th>
+          </tr>
+          <tr>
+            <td id="geometry"></td>
+            <td id="currency"></td>
+            <td id="borders"></td>
+            <td id="callingCodes"></td>
+          </tr>
+          <tr class="bg-light">
+            <th scope="col">Languages</th>
+            <th scope="col">Population</th>
+            <th scope="col">Region</th>
+            <th scope="col">Region Blocks</th>
+          </tr>
+          <tr>
+            <td id="languages"></td>
+            <td id="population"></td>
+            <td id="region"></td>
+            <td id="regionalBlocks"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="loader-wrapper">
+      <span class="loader"><span class="loader-inner"></span></span>
+    </div>
+    <section
+      id="history"
+      style="
+        background-image: linear-gradient(
+          to bottom right,
+          rgb(216, 216, 216),
+          rgb(232, 232, 232)
+        );
+      "
+    >
+      <div class="container">
+        <h2>Nearby Places and History</h2>
+      </div>
+      <div class="container" id="wikipost1"></div>
+      <br /><br />
+      <div class="container" id="wikipost2"></div>
+      <br /><br />
+      <div class="container" id="wikipost3"></div>
+    </section>
+
+    <script type="text/javascript">
+      /////////////////////////////////////////leaflet:
+      $(window).on("load", function () {
+        $(".loader-wrapper").fadeOut("slow");
+      });
+      $(document).ready(function () {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function (position) {
+            var map = L.map("mapid", { zoomControl: false }).setView(
+              [position.coords.latitude, position.coords.longitude],
+              16
+            );
+
+            L.tileLayer(
+              "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+              {
+                attribution:
+                  'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: "mapbox/streets-v11",
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken:
+                  "pk.eyJ1IjoiemFyYWtoYWxpcSIsImEiOiJja2RvazV1eXAxc3FzMnhxMzhtdXR4dnhvIn0.dMALGZc6TvoR80B31DmxDg",
+              }
+            ).addTo(map);
+
+            //Creating marker and circle that appears on html location when page loads:
+
+            var customIcon = L.icon({
+              iconUrl: "/images/marker.svg",
+              iconSize: [40, 40], // size of the icon
+              iconAnchor: [20, 20], // point of the icon which will correspond to marker's location
+              //popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
+            });
+
+            var marker = L.marker(
+              [position.coords.latitude, position.coords.longitude],
+              { icon: customIcon, draggable: "true" }
+            ).addTo(map);
+            marker.on("dragend", function (event) {
+              var marker = event.target;
+              var position = marker.getLatLng();
+              console.log(position);
+              marker
+                .setLatLng(position, { draggable: "true" })
+                .bindPopup(position)
+                .update();
+            });
+            map.addLayer(marker);
+
+            var circle = L.circle(
+              [position.coords.latitude, position.coords.longitude],
+              {
+                color: "red",
+                fillColor: "#f03",
+                fillOpacity: 0.2,
+                radius: 1000,
+              }
+            ).addTo(map);
+
+            //Creating search bar using l.control.geocoder which uses nominatim
+
+            L.Control.geocoder({
+              placeholder: "Enter Country/City",
+              errorMessage: "No matching results found!",
+              position: "topleft",
+              //collapsed:false
+            }).addTo(map);
+
+            var newParent = document.getElementById("searchbar");
+            var oldParent = document.getElementsByClassName(
+              "leaflet-top leaflet-left"
+            );
+
+            while (oldParent[0].childNodes.length > 0) {
+              newParent.appendChild(oldParent[0].childNodes[0]);
+            }
+            new L.Control.Zoom({ position: "topleft" }).addTo(map);
+
+            //Creating event that shows address popup when user clicks anywhere on the map:
+
+            map.on("click", function (e) {
+              $.ajax({
+                type: "POST",
+                url: "geolocate.php",
+                data: "q=" + e.latlng.lat + "," + e.latlng.lng,
+                dataType: "json",
+                success: function (data, error, status) {
+                  console.log(data);
+                  console.log(error);
+                  console.log(status);
+                  if (data !== 0) {
+                    $("#city").empty();
+                    $("#city").append(data.results[0].components.city);
+                    $("#timezone").empty();
+                    $("#timezone").append(data.results[0].timezone);
+                    $("#currency").empty();
+                    $("#currency").append(data.results[0].currency);
+                    $("#geometry").empty();
+                    $("#geometry").append(
+                      data.results[0].geometry.lat +
+                        "," +
+                        data.results[0].geometry.lng
+                    );
+                  } else {
+                    console.log("Error: could not find city and timezone");
+                    $("#city").empty();
+                    $("#timezone").empty();
+                    $("#currency").empty();
+                    $("#geometry").empty();
+                  }
+                },
+                error: function (xhr, status, error) {
+                  console.log(error);
+                  $("#city").append("-");
+                  $("#timezone").append("-");
+                  $("#currency").append("-");
+                  $("#geomtry").append("-");
+                },
+              });
+            });
+
+            map.on("click", function (e) {
+              $.ajax({
+                type: "POST",
+                url: "test2.php",
+                dataType: "json",
+                data: {
+                  x: e.latlng.lat,
+                  y: e.latlng.lng,
+                },
+                success: function (data, error) {
+                  var result = JSON.parse(data);
+                  if (result.status == 404) {
+                    $("#borders").empty();
+                    $("#borders").append("-");
+                    $("#callingCodes").empty();
+                    $("#callingCodes").append("-");
+                    $("#languages").empty("-");
+                    $("#languages").append("-");
+                    $("#population").empty("-");
+                    $("#population").append("-");
+                    $("#region").empty();
+                    $("#region").append("-");
+                    $("#regionalBlocks").empty();
+                    $("#regionalBlocks").append("-");
+                  } else {
+                    $("#borders").empty();
+                    $("#borders").append(result[0].borders + "<br>");
+                    $("#callingCodes").empty();
+                    $("#callingCodes").append(result[0].callingCodes + "<br>");
+                    $("#languages").empty();
+                    $("#languages").append(
+                      result[0].languages[0].name + "<br>"
+                    );
+                    $("#population").empty();
+                    $("#population").append(result[0].population + "<br>");
+                    $("#region").empty();
+                    $("#region").append(result[0].region + "<br>");
+                    $("#regionalBlocks").empty();
+                    $("#regionalBlocks").append(
+                      result[0].regionalBlocs[0].name + "<br>"
+                    );
+                  }
+                },
+                error: function (xhr, status, error) {
+                  console.log(error);
+                  $("#borders").empty();
+                  $("#borders").append("-");
+                  $("#callingCodes").empty();
+                  $("#callingCodes").append("-");
+                  $("#languages").empty("-");
+                  $("#languages").append("-");
+                  $("#population").empty("-");
+                  $("#population").append("-");
+                  $("#region").empty();
+                  $("#region").append("-");
+                  $("#regionalBlocks").empty();
+                  $("#regionalBlocks").append("-");
+                },
+              });
+            });
+
+            map.on("click", function (e) {
+              geocoder = L.Control.Geocoder.nominatim();
+              geocoder.reverse(
+                e.latlng,
+                map.options.crs.scale(map.getZoom()),
+                function (results) {
+                  var r = results[0];
+                  $("#address").empty();
+                  $("#address").append(r.name);
+                }
+              );
+            });
+            map.on("click", function (e) {
+              $.ajax({
+                type: "POST",
+                url: "geonames.php",
+                dataType: "json",
+                data: {
+                  x: e.latlng.lat,
+                  y: e.latlng.lng,
+                  //q:'q='+position.coords.latitude+','+position.coords.longitude
+                },
+                success: function (data, error) {
+                  JSONdata0 = JSON.parse(data[0]);
+                  JSONdata1 = JSON.parse(data[1]);
+                  if (JSONdata0.weather) {
+                    $("#weather").empty();
+                    $("#weather").append(
+                      "Weather: " + JSONdata0.weather[0].description + "<br>"
+                    );
+                    $("#weather").append(
+                      "Min Temperature: " + JSONdata0.main.temp_min + "°F<br>"
+                    );
+                    $("#weather").append(
+                      "Max Temperature: " + JSONdata0.main.temp_max + "°F<br>"
+                    );
+                    $("#weather").append(
+                      "Humidity: " + JSONdata0.main.humidity + "%"
+                    );
+                  } else {
+                    console.log("Error: could not find climate");
+                    $("#weather").empty();
+                    $("#weather").append("-");
+                  }
+
+                  if (JSONdata1.geonames[0]) {
+                    $("#wikipost1").empty();
+                    $("#wikipost1").append(
+                      "Title: " + JSONdata1.geonames[0].title + "<br>"
+                    );
+                    $("#wikipost1").append(
+                      "Summary: " + JSONdata1.geonames[0].summary + "<br>"
+                    );
+                    $("#wikipost1").append(
+                      "Reference: <a href='" +
+                        JSONdata1.geonames[0].wikipediaUrl +
+                        "'>Read more</a>"
+                    );
+                  } else {
+                    $("#wikipost1").empty();
+                    $("#wikipost1").append("-");
+                  }
+
+                  if (JSONdata1.geonames[1]) {
+                    $("#wikipost2").empty();
+                    $("#wikipost2").append(
+                      "Title: " + JSONdata1.geonames[1].title + "<br>"
+                    );
+                    $("#wikipost2").append(
+                      "Summary: " + JSONdata1.geonames[1].summary + "<br>"
+                    );
+                    $("#wikipost2").append(
+                      "Reference: <a href='" +
+                        JSONdata1.geonames[1].wikipediaUrl +
+                        "'>Read more</a>"
+                    );
+                  } else {
+                    $("#wikipost2").empty();
+                    $("#wikipost2").append("-");
+                  }
+
+                  if (JSONdata1.geonames[2]) {
+                    $("#wikipost3").empty();
+                    $("#wikipost3").append(
+                      "Title: " + JSONdata1.geonames[2].title + "<br>"
+                    );
+                    $("#wikipost3").append(
+                      "Summary: " + JSONdata1.geonames[2].summary + "<br>"
+                    );
+                    $("#wikipost3").append(
+                      "Reference: <a href='" +
+                        JSONdata1.geonames[2].wikipediaUrl +
+                        "'>Read more</a>"
+                    );
+                  } else {
+                    $("#wikipost3").empty();
+                    $("#wikipost3").append("-");
+                  }
+                },
+              });
+            });
+
+            map.on("click", function (e) {
+              geocoder = L.Control.Geocoder.nominatim();
+              geocoder.reverse(
+                e.latlng,
+                map.options.crs.scale(map.getZoom()),
+                function (results) {
+                  var r = results[0];
+                  if (r) {
+                    if (marker) {
+                      marker
+                        .setLatLng(r.center)
+                        .setPopupContent(r.html || r.name)
+                        .openPopup();
+                    } else {
+                      marker = L.marker(r.center)
+                        .bindPopup(r.name)
+                        .addTo(map)
+                        .openPopup();
+                    }
+                  }
+                }
+              );
+
+              marker.on("dragend", function (e) {
+                var chagedPos = e.target.getLatLng();
+                geocoder.reverse(
+                  chagedPos,
+                  map.options.crs.scale(map.getZoom()),
+                  function (results) {
+                    var r = results[0];
+                    if (r) {
+                      if (marker) {
+                        marker
+                          .setLatLng(r.center)
+                          .setPopupContent(r.html || r.name)
+                          .openPopup();
+                      } else {
+                        marker = L.marker(r.center)
+                          .bindPopup(r.name)
+                          .addTo(map)
+                          .openPopup();
+                      }
+                    }
+                  }
+                );
+              });
+              map.on("popupopen", function (centerMarker) {
+                var cM = map.project(centerMarker.popup._latlng);
+                cM.y -= centerMarker.popup._container.clientHeight / 2;
+                map.setView(map.unproject(cM), 16, { animate: true });
+              });
+            });
+
+            L.Routing.control({
+              router: new L.Routing.openrouteservice(
+                "5b3ce3597851110001cf6248f49cb3ec17894324bfbb33a81edd3d07"
+              ),
+              waypoints: [
+                L.latLng(position.coords.latitude, position.coords.longitude),
+              ],
+              routeWhileDragging: true,
+              geocoder: L.Control.Geocoder.nominatim(),
+              fitSelectedRoutes: true,
+              createMarker: function (i, wp, nWps) {
+                // here change the starting and ending icons
+                return L.marker(wp.latLng, {
+                  icon: customIcon,
+                  draggable: "true",
+                })
+                  .bindPopup(wp.latLng.toString())
+                  .addTo(map);
+              },
+              pointMarkerStyle: {
+                radius: 5,
+                color: "green",
+                fillColor: "white",
+                opacity: 1,
+                fillOpacity: 0.7,
+              },
+              collapsible: true,
+              containerClassName: "routingContainer",
+              addButtonClassName: "routingButton",
+              lineOptions: {
+                styles: [
+                  { color: "black", opacity: 0.15, weight: 9 },
+                  { color: "white", opacity: 0.8, weight: 6 },
+                  { color: "rebeccapurple", opacity: 1, weight: 2 },
+                ],
+              },
+            }).addTo(map);
+
+            //When page loads the positioned at geolocation has an automatic popup that shows address from opencage data
+
+            $.ajax({
+              type: "POST",
+              url: "geolocate.php",
+              data:
+                "q=" +
+                position.coords.latitude +
+                "," +
+                position.coords.longitude,
+              dataType: "json",
+              success: function (data) {
+                var popup = marker
+                  .bindPopup(data.results[0].formatted)
+                  .openPopup();
+              },
+            });
+
+            //var latlngs = [
+            //  [57.74, 11.94],
+            //[57.6792, 11.949]
+            //];
+            //var polyline = L.polyline(latlngs, {color: 'red'}).addTo(map);
+            // zoom the map to the polyline
+            //map.fitBounds(polyline.getBounds());
+
+            // .on('markgeocode', function(e) {
+            // var bbox = e.geocode.bbox;
+            //var poly = L.polygon([
+            //bbox.getSouthEast(),
+            //bbox.getNorthEast(),
+            //bbox.getNorthWest(),
+            //bbox.getSouthWest()
+            //]).addTo(map);
+            //map.fitBounds(poly.getBounds());
+            //})
+            //.addTo(map);
+          });
+        } else {
+          alert("Error:Location not found.");
+        }
+      });
+
+      $(document).ready(function () {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function (position) {
+            if (localStorage.getItem("city") === null) {
+              $.ajax({
+                type: "POST",
+                url: "geolocate.php",
+                data:
+                  "q=" +
+                  position.coords.latitude +
+                  "," +
+                  position.coords.longitude,
+
+                dataType: "json",
+
+                success: function (data) {
+                  var city = data.results[0].components.city;
+                  var address = data.results[0].formatted;
+                  var timezone = data.results[0].timezone;
+                  var currency = data.results[0].currency;
+                  var latitude = data.results[0].geometry.lat;
+                  var longitude = data.results[0].geometry.lng;
+                  $("#city").append(city);
+                  $("#address").append(address);
+                  $("#timezone").append(timezone);
+                  $("#currency").append(currency);
+                  $("#geometry").append(latitude + "," + longitude);
+                  localStorage.setItem("city", city);
+                  localStorage.setItem("address", address);
+                  localStorage.setItem("timezone", timezone);
+                  localStorage.setItem("currency", currency);
+                  localStorage.setItem("latitude", latitude);
+                  localStorage.setItem("longitude", longitude);
+                },
+              });
+            } else {
+              var city = localStorage.getItem("city");
+              var address = localStorage.getItem("address");
+              var timezone = localStorage.getItem("timezone");
+              var currency = localStorage.getItem("currency");
+              var latitude = localStorage.getItem("latitude");
+              var longitude = localStorage.getItem("longitude");
+              $("#city").append(city);
+              $("#address").append(address);
+              $("#timezone").append(timezone);
+              $("#currency").append(currency);
+              $("#geometry").append(latitude + "," + longitude);
+            }
+
+            if (localStorage.getItem("weather") === null) {
+              $.ajax({
+                type: "POST",
+                url: "geonames.php",
+                dataType: "json",
+                data: {
+                  x: position.coords.latitude,
+                  y: position.coords.longitude,
+
+                  //q:'q='+position.coords.latitude+','+position.coords.longitude
+                },
+                success: function (data) {
+                  JSONdata0 = JSON.parse(data[0]);
+                  JSONdata1 = JSON.parse(data[1]);
+
+                  $("#weather").append(
+                    "Weather: " + JSONdata0.weather[0].description + "<br>"
+                  );
+                  $("#weather").append(
+                    "Min Temperature: " + JSONdata0.main.temp_min + "°F<br>"
+                  );
+                  $("#weather").append(
+                    "Max Temperature: " + JSONdata0.main.temp_max + "°F<br>"
+                  );
+                  $("#weather").append(
+                    "Humidity: " + JSONdata0.main.humidity + "%"
+                  );
+
+                  $("#wikipost1").append(
+                    "Title: " + JSONdata1.geonames[0].title + "<br>"
+                  );
+                  $("#wikipost1").append(
+                    "Summary: " + JSONdata1.geonames[0].summary + "<br>"
+                  );
+                  $("#wikipost1").append(
+                    "Reference: <a href='" +
+                      JSONdata1.geonames[0].wikipediaUrl +
+                      "'>Read more</a>"
+                  );
+
+                  $("#wikipost2").append(
+                    "Title: " + JSONdata1.geonames[1].title + "<br>"
+                  );
+                  $("#wikipost2").append(
+                    "Summary: " + JSONdata1.geonames[1].summary + "<br>"
+                  );
+                  $("#wikipost2").append(
+                    "Reference: <a href='" +
+                      JSONdata1.geonames[1].wikipediaUrl +
+                      "'>Read more</a>"
+                  );
+
+                  $("#wikipost3").append(
+                    "Title: " + JSONdata1.geonames[2].title + "<br>"
+                  );
+                  $("#wikipost3").append(
+                    "Summary: " + JSONdata1.geonames[2].summary + "<br>"
+                  );
+                  $("#wikipost3").append(
+                    "Reference: <a href='" +
+                      JSONdata1.geonames[2].wikipediaUrl +
+                      "'>Read more</a>"
+                  );
+
+                  var weather = JSONdata0.weather[0].description;
+                  var min_temp = JSONdata0.main.temp_min;
+                  var max_temp = JSONdata0.main.temp_max;
+                  var humidity = JSONdata0.main.humidity;
+
+                  var wiki1Title = JSONdata1.geonames[0].title;
+                  var wiki1Summary = JSONdata1.geonames[0].summary;
+                  var wiki1Ref = JSONdata1.geonames[0].wikipediaUrl;
+                  var wiki2Title = JSONdata1.geonames[1].title;
+                  var wiki2Summary = JSONdata1.geonames[1].summary;
+                  var wiki2Ref = JSONdata1.geonames[1].wikipediaUrl;
+                  var wiki3Title = JSONdata1.geonames[2].title;
+                  var wiki3Summary = JSONdata1.geonames[2].summary;
+                  var wiki3Ref = JSONdata1.geonames[2].wikipediaUrl;
+
+                  localStorage.setItem("weather", weather);
+                  localStorage.setItem("min_temp", min_temp);
+                  localStorage.setItem("max_temp", max_temp);
+                  localStorage.setItem("humidity", humidity);
+                  localStorage.setItem("wiki1Title", wiki1Title);
+                  localStorage.setItem("wiki1Summary", wiki1Summary);
+                  localStorage.setItem("wiki1Ref", wiki1Ref);
+                  localStorage.setItem("wiki2Title", wiki2Title);
+                  localStorage.setItem("wiki2Summary", wiki2Summary);
+                  localStorage.setItem("wiki2Ref", wiki2Ref);
+                  localStorage.setItem("wiki3Title", wiki3Title);
+                  localStorage.setItem("wiki3Summary", wiki3Summary);
+                  localStorage.setItem("wiki3Ref", wiki3Ref);
+                },
+              });
+              $.ajax({
+                type: "POST",
+                url: "test2.php",
+                dataType: "json",
+                data: {
+                  x: position.coords.latitude,
+                  y: position.coords.longitude,
+
+                  //q:'q='+position.coords.latitude+','+position.coords.longitude
+                },
+                success: function (data) {
+                  var result = JSON.parse(data);
+
+                  $("#borders").append(result[0].borders + "<br>");
+                  $("#callingCodes").append(result[0].callingCodes + "<br>");
+                  $("#languages").append(result[0].languages[0].name + "<br>");
+                  $("#population").append(result[0].population + "<br>");
+                  $("#region").append(result[0].region + "<br>");
+                  $("#regionalBlocks").append(
+                    result[0].regionalBlocs[0].name + "<br>"
+                  );
+
+                  var borders = result[0].borders;
+                  var callingCodes = result[0].callingCodes;
+                  var languages = result[0].languages[0].name;
+                  var population = result[0].population;
+                  var region = result[0].region;
+                  var regionalBlocks = result[0].regionalBlocs[0].name;
+                  localStorage.setItem("borders", borders);
+                  localStorage.setItem("callingCodes", callingCodes);
+                  localStorage.setItem("languages", languages);
+                  localStorage.setItem("population", population);
+                  localStorage.setItem("region", region);
+                  localStorage.setItem("regionalBlocks", regionalBlocks);
+                },
+              });
+            } else {
+              console.log(localStorage);
+              var weather = localStorage.getItem("weather");
+              var min_temp = localStorage.getItem("min_temp");
+              var max_temp = localStorage.getItem("max_temp");
+              var humidity = localStorage.getItem("humidity");
+
+              var wiki1Title = localStorage.getItem("wiki1Title");
+              var wiki1Summary = localStorage.getItem("wiki1Summary");
+              var wiki1Ref = localStorage.getItem("wiki1Ref");
+              var wiki2Title = localStorage.getItem("wiki2Title");
+              var wiki2Summary = localStorage.getItem("wiki2Summary");
+              var wiki2Ref = localStorage.getItem("wiki2Ref");
+              var wiki3Title = localStorage.getItem("wiki3Title");
+              var wiki3Summary = localStorage.getItem("wiki3Summary");
+              var wiki3Ref = localStorage.getItem("wiki3Ref");
+
+              var borders = localStorage.getItem("borders");
+              var callingCodes = localStorage.getItem("callingCodes");
+              var languages = localStorage.getItem("languages");
+              var population = localStorage.getItem("population");
+              var region = localStorage.getItem("region");
+              var regionalBlocks = localStorage.getItem("regionalBlocks");
+
+              $("#weather").append("Weather: " + weather + "<br>");
+              $("#weather").append("Min Temperature: " + min_temp + "°F<br>");
+              $("#weather").append("Max Temperature: " + max_temp + "°F<br>");
+              $("#weather").append("Humidity: " + humidity + "%<br>");
+              $("#wikipost1").append("Title: " + wiki1Title + "<br>");
+              $("#wikipost1").append("Summary: " + wiki1Summary + "<br>");
+              $("#wikipost1").append(
+                "Reference: <a href='" + wiki1Ref + "'>Read more</a>"
+              );
+
+              $("#wikipost2").append("Title: " + wiki2Title + "<br>");
+              $("#wikipost2").append("Summary: " + wiki2Summary + "<br>");
+              $("#wikipost2").append(
+                "Reference: <a href='" + wiki2Ref + "'>Read more</a>"
+              );
+
+              $("#wikipost3").append("Title: " + wiki3Title + "<br>");
+              $("#wikipost3").append("Summary: " + wiki3Summary + "<br>");
+              $("#wikipost3").append(
+                "Reference: <a href='" + wiki3Ref + "'>Read more</a>"
+              );
+
+              $("#borders").append(borders + "<br>");
+              $("#callingCodes").append(callingCodes + "<br>");
+              $("#languages").append(languages + "<br>");
+              $("#population").append(population + "<br>");
+              $("#region").append(region + "<br>");
+              $("#regionalBlocks").append(regionalBlocks + "<br>");
+            }
+          });
+        } else {
+          $("#main").append("Geolocation is not supported by this browser.");
+        }
+      });
+    </script>
+  </body>
+</html>
